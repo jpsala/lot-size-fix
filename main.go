@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
+	"regexp"
 )
 
 const (
@@ -36,42 +36,60 @@ func main() {
 	patron := os.Args[1]
 	archivos, err := filepath.Glob(patron)
 	if err != nil {
-		fmt.Printf("Error al buscar archivos con el patrón: %s\n", err)
+		fmt.Printf("%sError al buscar archivos con el patrón: %s%s\n", ColorRed, err, ColorReset)
 		os.Exit(1)
 	}
 
 	if len(archivos) == 0 {
-		fmt.Printf("No se encontraron archivos con el patrón: %s\n", patron)
+		fmt.Printf("%sNo se encontraron archivos con el patrón: %s%s\n", ColorYellow, patron, ColorReset)
 		return
 	}
 
-	lineaVieja := "double PointValue = SymbolInfoDouble(correctedSymbol, SYMBOL_TRADE_TICK_VALUE) / SymbolInfoDouble(correctedSymbol, SYMBOL_TRADE_TICK_SIZE);"
-	lineaNueva := "double PointValue = SymbolInfoDouble(correctedSymbol, SYMBOL_TRADE_CONTRACT_SIZE);"
+	lineaNueva := `// --- FIX START ---
+	// Verbose PointValue calculation for debugging
+	double incorrectPointValue = SymbolInfoDouble(correctedSymbol, SYMBOL_TRADE_TICK_VALUE) / SymbolInfoDouble(correctedSymbol, SYMBOL_TRADE_TICK_SIZE);
+	double correctPointValue = SymbolInfoDouble(correctedSymbol, SYMBOL_TRADE_CONTRACT_SIZE);
+	
+	Print(StringFormat("PointValue (Incorrect Method): %.5f", incorrectPointValue));
+	Print(StringFormat("PointValue (Correct Method):   %.5f", correctPointValue));
+
+	double PointValue = correctPointValue; // Use the correct value for the EA's logic
+	// --- FIX END ---`
 
 	for _, archivo := range archivos {
 		if filepath.Ext(archivo) != ".mq5" {
-			fmt.Printf("El archivo '%s' no es un archivo .mq5 y será omitido.\n", archivo)
+			fmt.Printf("%sOmitiendo archivo '%s' (no es .mq5).%s\n\n", ColorYellow, archivo, ColorReset)
 			continue
 		}
 
+		fmt.Printf("Analizando archivo: %s%s%s\n", ColorCyan, archivo, ColorReset)
+
 		contenido, err := ioutil.ReadFile(archivo)
 		if err != nil {
-			fmt.Printf("Error al leer el archivo %s: %s\n", archivo, err)
+			fmt.Printf("%sError al leer el archivo %s: %s%s\n", ColorRed, archivo, err, ColorReset)
 			continue
 		}
 
 		contenidoString := string(contenido)
 
-		if strings.Contains(contenidoString, lineaVieja) {
-			nuevoContenido := strings.Replace(contenidoString, lineaVieja, lineaNueva, -1)
+		// Use regex to find the line, ignoring whitespace variations
+		re := regexp.MustCompile(`double\s+PointValue\s*=\s*SymbolInfoDouble\s*\(\s*correctedSymbol,\s*SYMBOL_TRADE_TICK_VALUE\s*\)\s*/\s*SymbolInfoDouble\s*\(\s*correctedSymbol,\s*SYMBOL_TRADE_TICK_SIZE\s*\);`)
+
+		if re.MatchString(contenidoString) {
+			// Store the actual found line for logging purposes
+			foundLine := re.FindString(contenidoString)
+
+			nuevoContenido := re.ReplaceAllString(contenidoString, lineaNueva)
 			err = ioutil.WriteFile(archivo, []byte(nuevoContenido), 0644)
 			if err != nil {
-				fmt.Printf("Error al escribir en el archivo %s: %s\n", archivo, err)
+				fmt.Printf("%sError al escribir en el archivo %s: %s%s\n", ColorRed, archivo, err, ColorReset)
 				continue
 			}
-			fmt.Printf("El archivo '%s' ha sido actualizado correctamente.\n", archivo)
+			fmt.Printf("%s✔ El archivo ha sido actualizado correctamente.%s\n", ColorGreen, ColorReset)
+			fmt.Printf("  %s- Removido (Incorrecto): %s%s\n", ColorRed, foundLine, ColorReset)
+			fmt.Printf("  %s+ Agregado (Correcto):   %s// Code block with verbose logging%s\n\n", ColorGreen, ColorYellow, ColorReset)
 		} else {
-			fmt.Printf("No se encontró la línea a reemplazar en '%s'. El archivo puede que ya estuviera actualizado.\n", archivo)
+			fmt.Printf("%sNo se encontró la línea a reemplazar. El archivo puede que ya estuviera actualizado.%s\n\n", ColorYellow, ColorReset)
 		}
 	}
 }
