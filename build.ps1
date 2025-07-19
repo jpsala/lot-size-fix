@@ -1,0 +1,1 @@
+go build -o fix-SQ-scripts.exe main.go
