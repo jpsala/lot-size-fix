@@ -12,11 +12,28 @@ Los scripts `.mq5` originales contienen un cálculo incorrecto para `PointValue`
 - **Interfaz Gráfica de Usuario (GUI):** Una ventana simple que muestra el estado de cada archivo que se está procesando.
 - **Integración con Menú Contextual:** Haz clic derecho en archivos `.mq5`, carpetas o en el fondo de una carpeta en el Explorador de Windows para parchear los archivos.
 
+## Requisitos Previos
+
+- **Para todos los usuarios:** Se necesita **PowerShell** para ejecutar los scripts de instalación (`install.ps1`) y desinstalación (`uninstall.ps1`). PowerShell viene preinstalado en las versiones modernas de Windows.
+- **Solo para desarrolladores:** Se necesita **Go** si deseas compilar la aplicación desde el código fuente.
+
 ## Instalación
 
-1.  Asegúrate de tener PowerShell y Go instalados en tu sistema.
-2.  Ejecuta el script `build.ps1` para compilar la aplicación. Esto creará un ejecutable `fix-SQ-scripts.exe` en el directorio del proyecto.
-3.  Haz clic derecho en el script `install.ps1` y selecciona "Ejecutar con PowerShell". Esto instalará los accesos directos del menú contextual.
+Se proporcionan dos métodos de instalación: uno para usuarios finales que solo desean utilizar la herramienta y otro para desarrolladores que desean compilarla desde el código fuente.
+
+### Para Usuarios Finales
+
+No es necesario instalar Go. El ejecutable (`fix-SQ-scripts.exe`) ya está incluido.
+
+1.  Asegúrate de tener PowerShell (generalmente incluido en Windows).
+2.  Haz clic derecho en `install.ps1` y selecciona "Ejecutar con PowerShell" para agregar los accesos directos del menú contextual.
+
+### Para Desarrolladores (Compilar desde fuente)
+
+Si deseas modificar o compilar el programa, necesitarás Go.
+
+1.  Ejecuta `build.ps1` para compilar el proyecto. Esto creará/reemplazará `fix-SQ-scripts.exe`.
+2.  Ejecuta `install.ps1` para registrar los comandos del menú contextual para tu nueva versión.
 
 ## Cómo Usar
 
@@ -41,7 +58,7 @@ Ejecuta el script `uninstall.ps1` para eliminar los accesos directos del menú c
 
 ## Detalles Técnicos
 
-La aplicación está escrita en Go y utiliza la biblioteca Fyne para la GUI. El script `install.ps1` crea entradas en el registro para agregar los accesos directos del menú contextual.
+La aplicación está escrita en Go y utiliza la biblioteca Fyne para la GUI. Una vez compilado, el ejecutable `fix-SQ-scripts.exe` es autónomo y no requiere dependencias externas para ejecutarse. El script `install.ps1` crea entradas en el registro para agregar los accesos directos del menú contextual.
 
 ### Corrección del Menú Contextual
 
