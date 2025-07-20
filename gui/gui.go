@@ -62,49 +62,46 @@ func Start(paths []string, debug bool) {
 	progressLabel := widget.NewLabel("Processing files...")
 	bottomBox := container.NewVBox(progressLabel, progressBar)
 
-	startButton := widget.NewButton("Start", nil)
 	closeButton := widget.NewButton("Close", func() {
 		w.Close()
 	})
 	closeButton.Disable()
 
-	startButton.OnTapped = func() {
-		startButton.Disable()
-		go func() {
-			defer func() {
-				progressLabel.SetText("All tasks complete.")
-				closeButton.Enable()
-			}()
-
-			filesToProcess, err := core.GetFilesToProcess(paths)
-			if err != nil {
-				progressLabel.SetText("Error: " + err.Error())
-				return
-			}
-
-			totalFiles := len(filesToProcess)
-			if totalFiles == 0 {
-				progressLabel.SetText("No files found to process.")
-				return
-			}
-			resultsChan := core.ProcessPaths(filesToProcess)
-			filesProcessed := 0
-
-			for result := range resultsChan {
-				resultsMutex.Lock()
-				results = append(results, result)
-				resultsMutex.Unlock()
-				list.Refresh()
-
-				filesProcessed++
-				progress := float64(filesProcessed) / float64(totalFiles)
-				progressBar.SetValue(progress)
-				list.ScrollToBottom()
-			}
+	go func() {
+		defer func() {
+			progressLabel.SetText("All tasks complete.")
+			closeButton.Enable()
 		}()
-	}
 
-	buttonContainer := container.NewHBox(startButton, closeButton)
+		filesToProcess, err := core.GetFilesToProcess(paths)
+		if err != nil {
+			progressLabel.SetText("Error: " + err.Error())
+			return
+		}
+
+		totalFiles := len(filesToProcess)
+		if totalFiles == 0 {
+			progressLabel.SetText("No files found to process.")
+			closeButton.Enable()
+			return
+		}
+		resultsChan := core.ProcessPaths(filesToProcess)
+		filesProcessed := 0
+
+		for result := range resultsChan {
+			resultsMutex.Lock()
+			results = append(results, result)
+			resultsMutex.Unlock()
+			list.Refresh()
+
+			filesProcessed++
+			progress := float64(filesProcessed) / float64(totalFiles)
+			progressBar.SetValue(progress)
+			list.ScrollToBottom()
+		}
+	}()
+
+	buttonContainer := container.NewHBox(closeButton)
 	bottomBox.Add(buttonContainer)
 
 	content := container.NewBorder(nil, bottomBox, nil, nil, list)

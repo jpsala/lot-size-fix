@@ -1,48 +1,48 @@
-# Fix SQ Scripts
+# Corrector de Scripts de SQ
 
-This is a simple tool to patch `.mq5` files, replacing a specific line of code with a corrected version. It can be run from the command line or via a graphical user interface (GUI) by installing context menu shortcuts.
+Esta es una herramienta simple para parchear archivos `.mq5`, reemplazando una línea de código específica con una versión corregida. Se puede ejecutar desde la línea de comandos o a través de una interfaz gráfica de usuario (GUI) instalando accesos directos en el menú contextual.
 
-## The Problem
+## El Problema
 
-The original `.mq5` scripts contain an incorrect calculation for `PointValue`. This tool replaces the faulty line with a corrected version that uses `SymbolInfoDouble(correctedSymbol, SYMBOL_TRADE_CONTRACT_SIZE)`.
+Los scripts `.mq5` originales contienen un cálculo incorrecto para `PointValue`. Esta herramienta reemplaza la línea defectuosa con una versión corregida que utiliza `SymbolInfoDouble(correctedSymbol, SYMBOL_TRADE_CONTRACT_SIZE)`.
 
-## Features
+## Características
 
-- **Command-Line Interface (CLI):** Process files directly from the terminal.
-- **Graphical User Interface (GUI):** A simple window that shows the status of each file being processed.
-- **Context Menu Integration:** Right-click on `.mq5` files, folders, or folder backgrounds in Windows Explorer to patch files.
+- **Interfaz de Línea de Comandos (CLI):** Procesa archivos directamente desde la terminal.
+- **Interfaz Gráfica de Usuario (GUI):** Una ventana simple que muestra el estado de cada archivo que se está procesando.
+- **Integración con Menú Contextual:** Haz clic derecho en archivos `.mq5`, carpetas o en el fondo de una carpeta en el Explorador de Windows para parchear los archivos.
 
-## Installation
+## Instalación
 
-1.  Make sure you have PowerShell and Go installed on your system.
-2.  Run the `build.ps1` script to compile the application. This will create a `fix-SQ-scripts.exe` executable in the project directory.
-3.  Right-click on the `install.ps1` script and select "Run with PowerShell". This will install the context menu shortcuts.
+1.  Asegúrate de tener PowerShell y Go instalados en tu sistema.
+2.  Ejecuta el script `build.ps1` para compilar la aplicación. Esto creará un ejecutable `fix-SQ-scripts.exe` en el directorio del proyecto.
+3.  Haz clic derecho en el script `install.ps1` y selecciona "Ejecutar con PowerShell". Esto instalará los accesos directos del menú contextual.
 
-## How to Use
+## Cómo Usar
 
-### GUI Mode (via Context Menu)
+### Modo GUI (a través del Menú Contextual)
 
--   **For a single `.mq5` file:** Right-click the file and select "Fix MQ5 Scripts".
--   **For a folder:** Right-click the folder and select "Fix MQ5 Scripts" to process all `.mq5` files within that folder and its subdirectories.
--   **For the current folder:** Right-click on the background of a folder in Explorer and select "Fix MQ5 Scripts" to process all `.mq5` files in the current directory and its subdirectories.
+-   **Para un solo archivo `.mq5`:** Haz clic derecho en el archivo y selecciona "Fix MQ5 Scripts".
+-   **Para una carpeta:** Haz clic derecho en la carpeta y selecciona "Fix MQ5 Scripts" para procesar todos los archivos `.mq5` dentro de esa carpeta y sus subdirectorios.
+-   **Para la carpeta actual:** Haz clic derecho en el fondo de una carpeta en el Explorador y selecciona "Fix MQ5 Scripts" para procesar todos los archivos `.mq5` en el directorio actual y sus subdirectorios.
 
-### Command-Line Mode
+### Modo de Línea de Comandos
 
-Open a terminal and run the executable with the path to the file or a glob pattern for multiple files.
+Abre una terminal y ejecuta el archivo con la ruta al archivo o un patrón glob para múltiples archivos.
 
 ```sh
-./fix-SQ-scripts.exe "path/to/your/file.mq5"
+./fix-SQ-scripts.exe "ruta/a/tu/archivo.mq5"
 ./fix-SQ-scripts.exe "*.mq5"
 ```
 
-## Uninstallation
+## Desinstalación
 
-Run the `uninstall.ps1` script to remove the context menu shortcuts. This script is generated automatically when you run the installer.
+Ejecuta el script `uninstall.ps1` para eliminar los accesos directos del menú contextual. Este script se genera automáticamente cuando ejecutas el instalador.
 
-## Technical Details
+## Detalles Técnicos
 
-The application is written in Go and uses the Fyne library for the GUI. The `install.ps1` script creates registry entries to add the context menu shortcuts.
+La aplicación está escrita en Go y utiliza la biblioteca Fyne para la GUI. El script `install.ps1` crea entradas en el registro para agregar los accesos directos del menú contextual.
 
-### Context Menu Fix
+### Corrección del Menú Contextual
 
-The original `install.ps1` script used `"%1"` to pass the path to the application for all context menu entries. This works for files and folders, but not for the folder background context menu. The corrected script now uses `"%V"` for the folder background, which correctly passes the current directory path to the application.
+El script `install.ps1` original usaba `"%1"` para pasar la ruta a la aplicación para todas las entradas del menú contextual. Esto funciona para archivos y carpetas, pero no para el menú contextual del fondo de la carpeta. El script corregido ahora usa `"%V"` para el fondo de la carpeta, que pasa correctamente la ruta del directorio actual a la aplicación.
