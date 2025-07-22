@@ -1,16 +1,48 @@
-# Check for Administrator privileges
+# --- Pre-flight Checks ---
+
+# 1. Check for Administrator privileges
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "This script needs to be run as Administrator."
-    Write-Host "Attempting to re-launch as Administrator..."
+    Write-Host "----------------------------------------------------------------"
+    Write-Host "ERROR: Administrator privileges are required." -ForegroundColor Red
+    Write-Host "Please right-click this script and select 'Run as Administrator'."
+    Write-Host "Attempting to re-launch automatically..."
+    Write-Host "----------------------------------------------------------------"
+    # Attempt to re-launch with elevated privileges
     Start-Process pwsh -ArgumentList "-NoProfile -File `"$PSCommandPath`"" -Verb RunAs
     exit
 }
+Write-Host "SUCCESS: Running with Administrator privileges." -ForegroundColor Green
 
-Write-Host "Running as Administrator..."
+# 2. Check PowerShell Execution Policy
+$policy = Get-ExecutionPolicy
+Write-Host "Current PowerShell Execution Policy: $policy"
+if ($policy -ne 'Unrestricted' -and $policy -ne 'RemoteSigned' -and $policy -ne 'Bypass') {
+    Write-Host "----------------------------------------------------------------"
+    Write-Host "WARNING: Your PowerShell Execution Policy might prevent this script from running correctly." -ForegroundColor Yellow
+    Write-Host "If the script fails, please run the following command in an Administrator PowerShell window:"
+    Write-Host "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser"
+    Write-Host "----------------------------------------------------------------"
+}
+
+# --- Script Main Logic ---
+
+Write-Host "Starting context menu installation..."
 
 # Discover the absolute path of the script's directory
 $scriptPath = $PSScriptRoot
 $executablePath = Join-Path -Path $scriptPath -ChildPath "fix-SQ-scripts.exe"
+
+# 3. Verify executable exists
+if (-not (Test-Path $executablePath)) {
+    Write-Host "----------------------------------------------------------------"
+    Write-Host "ERROR: 'fix-SQ-scripts.exe' not found!" -ForegroundColor Red
+    Write-Host "Please ensure 'fix-SQ-scripts.exe' is in the same directory as this install script."
+    Write-Host "Script directory: $scriptPath"
+    Write-Host "----------------------------------------------------------------"
+    Read-Host "Press Enter to exit"
+    exit
+}
+Write-Host "SUCCESS: Found executable at: $executablePath" -ForegroundColor Green
 
 # Define Registry Paths
 $mq5KeyPath = "HKCU:\Software\Classes\SystemFileAssociations\.mq5\shell\FixMQ5Scripts"
