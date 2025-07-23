@@ -21,34 +21,40 @@ type PatchResult struct {
 // GetFilesToProcess expands the given paths into a list of individual files to be processed.
 func GetFilesToProcess(paths []string) ([]string, error) {
 	var filesToProcess []string
+	processed := make(map[string]bool)
+
 	for _, path := range paths {
-		// Primero, intentar tratar el path como un archivo literal
-		info, err := os.Stat(path)
-		if err == nil {
+		matches, err := filepath.Glob(path)
+		if err != nil {
+			return nil, fmt.Errorf("invalid glob pattern '%s': %v", path, err)
+		}
+
+		for _, match := range matches {
+			info, statErr := os.Stat(match)
+			if statErr != nil {
+				continue // Ignore if we can't stat it
+			}
+
 			if info.IsDir() {
-				// Si es un directorio, buscar archivos .mq5 recursivamente
-				filepath.Walk(path, func(walkPath string, walkInfo os.FileInfo, walkErr error) error {
+				// If glob returns a directory, walk it for .mq5 files
+				filepath.Walk(match, func(walkPath string, walkInfo os.FileInfo, walkErr error) error {
 					if walkErr == nil && !walkInfo.IsDir() && filepath.Ext(walkPath) == ".mq5" {
-						filesToProcess = append(filesToProcess, walkPath)
+						if !processed[walkPath] {
+							filesToProcess = append(filesToProcess, walkPath)
+							processed[walkPath] = true
+						}
 					}
 					return nil
 				})
-			} else if filepath.Ext(path) == ".mq5" {
-				// Si es un archivo .mq5, añadirlo directamente
-				filesToProcess = append(filesToProcess, path)
+			} else {
+				// It's a file, check the extension
+				if filepath.Ext(match) == ".mq5" {
+					if !processed[match] {
+						filesToProcess = append(filesToProcess, match)
+						processed[match] = true
+					}
+				}
 			}
-		} else if os.IsNotExist(err) {
-			// Si no existe, entonces tratarlo como un patrón de glob
-			matches, globErr := filepath.Glob(path)
-			if globErr != nil {
-				return nil, fmt.Errorf("patrón de globbing inválido '%s': %v", path, globErr)
-			}
-			for _, match := range matches {
-				filesToProcess = append(filesToProcess, match)
-			}
-		} else {
-			// Otro tipo de error al hacer Stat
-			return nil, fmt.Errorf("no se pudo acceder a la ruta '%s': %v", path, err)
 		}
 	}
 	return filesToProcess, nil

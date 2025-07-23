@@ -3,7 +3,6 @@ package gui
 import (
 	"fix-SQ-scripts/core"
 	"fix-SQ-scripts/logger"
-	"sync"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -21,42 +20,8 @@ func Start(paths []string, debug bool) {
 	a := app.New()
 	w := a.NewWindow("File Patcher")
 
-	results := make([]core.PatchResult, 0)
-	var resultsMutex sync.Mutex
-
-	list := widget.NewList(
-		func() int {
-			resultsMutex.Lock()
-			defer resultsMutex.Unlock()
-			return len(results)
-		},
-		func() fyne.CanvasObject {
-			return container.NewHBox(
-				widget.NewIcon(nil),
-				container.NewVBox(
-					widget.NewLabel("File Path"),
-					widget.NewLabel("Message"),
-				),
-			)
-		},
-		func(i widget.ListItemID, o fyne.CanvasObject) {
-			resultsMutex.Lock()
-			result := results[i]
-			resultsMutex.Unlock()
-
-			hbox := o.(*fyne.Container)
-			icon := hbox.Objects[0].(*widget.Icon)
-			vbox := hbox.Objects[1].(*fyne.Container)
-			filePath := vbox.Objects[0].(*widget.Label)
-			message := vbox.Objects[1].(*widget.Label)
-
-			icon.SetResource(statusIcon(result.Status))
-			filePath.SetText(result.FilePath)
-			filePath.TextStyle.Bold = true
-			message.SetText(result.Message)
-			message.Wrapping = fyne.TextWrapWord
-		},
-	)
+	resultsContainer := container.NewVBox()
+	scrollableResults := container.NewScroll(resultsContainer)
 
 	progressBar := widget.NewProgressBar()
 	progressLabel := widget.NewLabel("Processing files...")
@@ -89,22 +54,20 @@ func Start(paths []string, debug bool) {
 		filesProcessed := 0
 
 		for result := range resultsChan {
-			resultsMutex.Lock()
-			results = append(results, result)
-			resultsMutex.Unlock()
-			list.Refresh()
+			item := createResultItem(result)
+			resultsContainer.Add(item)
 
 			filesProcessed++
 			progress := float64(filesProcessed) / float64(totalFiles)
 			progressBar.SetValue(progress)
-			list.ScrollToBottom()
+			scrollableResults.ScrollToBottom()
 		}
 	}()
 
 	buttonContainer := container.NewHBox(closeButton)
 	bottomBox.Add(buttonContainer)
 
-	content := container.NewBorder(nil, bottomBox, nil, nil, list)
+	content := container.NewBorder(nil, bottomBox, nil, nil, scrollableResults)
 
 	w.SetContent(content)
 	w.Resize(fyne.NewSize(800, 600))
@@ -123,4 +86,16 @@ func statusIcon(status string) fyne.Resource {
 	default:
 		return theme.InfoIcon()
 	}
+}
+
+func createResultItem(result core.PatchResult) fyne.CanvasObject {
+	icon := widget.NewIcon(statusIcon(result.Status))
+	filePath := widget.NewLabel(result.FilePath)
+	filePath.TextStyle.Bold = true
+	message := widget.NewLabel(result.Message)
+	message.Wrapping = fyne.TextWrapWord
+
+	vbox := container.NewVBox(filePath, message)
+	border := container.NewBorder(nil, nil, icon, nil, vbox)
+	return border
 }
