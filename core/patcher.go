@@ -18,6 +18,13 @@ type PatchResult struct {
 	Message  string
 }
 
+// Patch defines a single patching operation.
+type Patch struct {
+	Name        string
+	Description string
+	Apply       func(string) (string, error)
+}
+
 // GetFilesToProcess expands the given paths into a list of individual files to be processed.
 func GetFilesToProcess(paths []string) ([]string, error) {
 	var filesToProcess []string
@@ -60,9 +67,62 @@ func GetFilesToProcess(paths []string) ([]string, error) {
 	return filesToProcess, nil
 }
 
+// SQMMFixedAmount is a patch that fixes the lot size calculation for SQ-translated EAs.
+var SQMMFixedAmount = Patch{
+	Name:        "SQMMFixedAmount",
+	Description: "Replaces the PointValue-based lot size calculation with a more reliable OrderCalcProfit method.",
+	Apply: func(content string) (string, error) {
+		originalContent := content
+		var changes []string
+
+		lineaNueva := `// --- FIX START ---
+	// Calculate profit/loss for a 1-lot trade to determine the exact drawdown
+	double oneLotSLDrawdown;
+	if(!OrderCalcProfit(isLongOrder(orderType) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, correctedSymbol, 1.0, openPrice, sl, oneLotSLDrawdown)) {
+		Print("OrderCalcProfit failed. Error: ", GetLastError());
+		return 0;
+	}
+	oneLotSLDrawdown = MathAbs(oneLotSLDrawdown);
+	Print(StringFormat("Money to risk: %.2f, One Lot SL Drawdown: %.2f", RiskedMoney, oneLotSLDrawdown));
+	// --- FIX END ---`
+
+		rePointValue := regexp.MustCompile(`double\s+PointValue\s*=\s*SymbolInfoDouble\s*\(\s*correctedSymbol,\s*SYMBOL_TRADE_TICK_VALUE\s*\)\s*/\s*SymbolInfoDouble\s*\(\s*correctedSymbol,\s*SYMBOL_TRADE_TICK_SIZE\s*\);`)
+		reMagicNumber := regexp.MustCompile(`(input\s+int\s+MagicNumber\s*=\s*)\d+;`)
+		reVerboseWithPointValue := regexp.MustCompile(`Verbose\s*\("Money to risk:.*?, DoubleToString\(PointValue\)\);`)
+		reUseSQTickSize := regexp.MustCompile(`input\s+bool\s+UseSQTickSize\s*=\s*false;`)
+		reOldDrawdown := regexp.MustCompile(`//Maximum drawdown of this order if we buy 1 lot\s*double\s+oneLotSLDrawdown\s*=\s*PointValue\s*\*\s*MathAbs\s*\(\s*openPrice\s*-\s*sl\s*\);`)
+
+		if rePointValue.MatchString(content) {
+			content = rePointValue.ReplaceAllString(content, "")
+			content = reOldDrawdown.ReplaceAllString(content, lineaNueva)
+			content = reVerboseWithPointValue.ReplaceAllString(content, `// $0`)
+			changes = append(changes, "PointValue calculation replaced with OrderCalcProfit.")
+		}
+
+		if reUseSQTickSize.MatchString(content) {
+			content = reUseSQTickSize.ReplaceAllString(content, "input bool UseSQTickSize = true;")
+			changes = append(changes, "Set UseSQTickSize to true.")
+		}
+
+		var randomNumber int
+		if reMagicNumber.MatchString(content) {
+			randomNumber = rand.Intn(899999) + 100000
+			replacementStr := fmt.Sprintf(`${1}%d; // Patched on %s`, randomNumber, time.Now().Format("2006-01-02"))
+			content = reMagicNumber.ReplaceAllString(content, replacementStr)
+			changes = append(changes, fmt.Sprintf("MagicNumber updated to %d.", randomNumber))
+		}
+
+		if originalContent != content {
+			return content, nil
+		}
+
+		return content, fmt.Errorf("no changes applied")
+	},
+}
+
 // ProcessPaths finds, reads, and patches .mq5 files based on the provided paths.
 // It returns a channel of PatchResult to communicate the outcome of each operation.
-func ProcessPaths(filesToProcess []string) <-chan PatchResult {
+func ProcessPaths(filesToProcess []string, patches []Patch) <-chan PatchResult {
 	results := make(chan PatchResult)
 
 	go func() {
@@ -77,19 +137,6 @@ func ProcessPaths(filesToProcess []string) <-chan PatchResult {
 			}
 			return
 		}
-		lineaNueva := `// --- FIX START ---
-	// Verbose PointValue calculation for debugging
-	double incorrectPointValue = SymbolInfoDouble(correctedSymbol, SYMBOL_TRADE_TICK_VALUE) / SymbolInfoDouble(correctedSymbol, SYMBOL_TRADE_TICK_SIZE);
-	double correctPointValue = SymbolInfoDouble(correctedSymbol, SYMBOL_TRADE_CONTRACT_SIZE);
-	
-	Print(StringFormat("PointValue (Incorrect Method): %.5f", incorrectPointValue));
-	Print(StringFormat("PointValue (Correct Method):   %.5f", correctPointValue));
-
-	double PointValue = correctPointValue; // Use the correct value for the EA's logic
-	// --- FIX END ---`
-
-		rePointValue := regexp.MustCompile(`double\s+PointValue\s*=\s*SymbolInfoDouble\s*\(\s*correctedSymbol,\s*SYMBOL_TRADE_TICK_VALUE\s*\)\s*/\s*SymbolInfoDouble\s*\(\s*correctedSymbol,\s*SYMBOL_TRADE_TICK_SIZE\s*\);`)
-		reMagicNumber := regexp.MustCompile(`(input\s+int\s+MagicNumber\s*=\s*)\d+;`)
 
 		for _, archivo := range filesToProcess {
 			ext := filepath.Ext(archivo)
@@ -144,34 +191,39 @@ func ProcessPaths(filesToProcess []string) <-chan PatchResult {
 			}
 
 			originalContenido := contenidoString
-			var changes []string
+			var appliedPatches []string
+			currentContent := contenidoString
 
-			if rePointValue.MatchString(contenidoString) {
-				contenidoString = rePointValue.ReplaceAllString(contenidoString, lineaNueva)
-				changes = append(changes, "PointValue actualizado.")
+			for _, patch := range patches {
+				newContent, err := patch.Apply(currentContent)
+				if err == nil && newContent != currentContent {
+					appliedPatches = append(appliedPatches, patch.Name)
+					currentContent = newContent
+				}
 			}
 
-			var randomNumber int
-			magicNumberChanged := false
-			if reMagicNumber.MatchString(contenidoString) {
-				randomNumber = rand.Intn(899999) + 100000
-				replacementStr := fmt.Sprintf(`${1}%d; // Patched on %s`, randomNumber, time.Now().Format("2006-01-02"))
-				contenidoString = reMagicNumber.ReplaceAllString(contenidoString, replacementStr)
-				changes = append(changes, fmt.Sprintf("MagicNumber actualizado a %d.", randomNumber))
-				magicNumberChanged = true
-			}
-
-			if originalContenido != contenidoString {
+			if originalContenido != currentContent {
 				var newFilePath string
-				if magicNumberChanged {
-					ext := filepath.Ext(archivo)
-					base := archivo[:len(archivo)-len(ext)]
-					newFilePath = fmt.Sprintf("%s-%d%s", base, randomNumber, ext)
+				reMagicNumber := regexp.MustCompile(`(input\s+int\s+MagicNumber\s*=\s*)\d+;`)
+				if reMagicNumber.MatchString(currentContent) {
+					matches := reMagicNumber.FindStringSubmatch(currentContent)
+					if len(matches) > 1 {
+						// This is a bit of a hack to get the new random number, assuming the patch set it.
+						// A better approach would be for the patch to return the new number.
+						var randomNumber int
+						fmt.Sscanf(matches[0], "input int MagicNumber = %d;", &randomNumber)
+
+						ext := filepath.Ext(archivo)
+						base := archivo[:len(archivo)-len(ext)]
+						newFilePath = fmt.Sprintf("%s-%s%s", base, strings.Split(matches[0], " ")[4], ext)
+					} else {
+						newFilePath = archivo
+					}
 				} else {
 					newFilePath = archivo
 				}
 
-				err = ioutil.WriteFile(newFilePath, []byte(contenidoString), 0644)
+				err = ioutil.WriteFile(newFilePath, []byte(currentContent), 0644)
 				if err != nil {
 					results <- PatchResult{
 						FilePath: archivo,
@@ -183,13 +235,13 @@ func ProcessPaths(filesToProcess []string) <-chan PatchResult {
 				results <- PatchResult{
 					FilePath: newFilePath,
 					Status:   "Parcheado",
-					Message:  fmt.Sprintf("Archivo actualizado y renombrado: %s", changes),
+					Message:  fmt.Sprintf("File patched successfully with: %s", strings.Join(appliedPatches, ", ")),
 				}
 			} else {
 				results <- PatchResult{
 					FilePath: archivo,
 					Status:   "Omitido",
-					Message:  "No se encontró la línea a reemplazar. El archivo ya podría estar parcheado.",
+					Message:  "No patches were applicable. The file might already be patched or doesn't need this fix.",
 				}
 			}
 		}

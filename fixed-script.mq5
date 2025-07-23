@@ -39,7 +39,7 @@ const bool forceFillingType = false;                                            
 
 input string CustomComment = "Strategy_4_42_100";
 bool IndicatorLoadedWithoutError = true;
-input int MagicNumber = 11111;        //MagicNumber
+input int MagicNumber = 909352; // Patched on 2025-07-23        //MagicNumber
 bool LongEntrySignal = false;        //LongEntrySignal
 bool ShortEntrySignal = false;        //ShortEntrySignal
 bool LongExitSignal = false;        //LongExitSignal
@@ -82,13 +82,21 @@ double sqMMFixedAmount(string symbol, ENUM_ORDER_TYPE orderType, double price, d
       return(0);
    }
    
-   double PointValue = SymbolInfoDouble(correctedSymbol, SYMBOL_TRADE_TICK_VALUE) / SymbolInfoDouble(correctedSymbol, SYMBOL_TRADE_TICK_SIZE); 
+    
    double Smallest_Lot = SymbolInfoDouble(correctedSymbol, SYMBOL_VOLUME_MIN);
    double Largest_Lot = SymbolInfoDouble(correctedSymbol, SYMBOL_VOLUME_MAX);    
    double LotStep = SymbolInfoDouble(correctedSymbol, SYMBOL_VOLUME_STEP);
 		
-   //Maximum drawdown of this order if we buy 1 lot 
-   double oneLotSLDrawdown = PointValue * MathAbs(openPrice - sl);
+   // --- FIX START ---
+	// Calculate profit/loss for a 1-lot trade to determine the exact drawdown
+	double oneLotSLDrawdown;
+	if(!OrderCalcProfit(isLongOrder(orderType) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, correctedSymbol, 1.0, openPrice, sl, oneLotSLDrawdown)) {
+		Print("OrderCalcProfit failed. Error: ", GetLastError());
+		return 0;
+	}
+	oneLotSLDrawdown = MathAbs(oneLotSLDrawdown);
+	Print(StringFormat("Money to risk: %.2f, One Lot SL Drawdown: %.2f", RiskedMoney, oneLotSLDrawdown));
+	// --- FIX END ---
 		
    if(oneLotSLDrawdown > 0) {
 	  LotSize = roundDown(RiskedMoney / oneLotSLDrawdown, decimals);

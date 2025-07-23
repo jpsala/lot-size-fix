@@ -50,7 +50,8 @@ func Start(paths []string, debug bool) {
 			closeButton.Enable()
 			return
 		}
-		resultsChan := core.ProcessPaths(filesToProcess)
+		availablePatches := []core.Patch{core.SQMMFixedAmount}
+		resultsChan := core.ProcessPaths(filesToProcess, availablePatches)
 		filesProcessed := 0
 
 		for result := range resultsChan {

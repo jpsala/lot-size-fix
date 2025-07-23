@@ -55,7 +55,8 @@ func main() {
 			os.Exit(1)
 		}
 
-		resultsChan := core.ProcessPaths(filesToProcess)
+		availablePatches := []core.Patch{core.SQMMFixedAmount}
+		resultsChan := core.ProcessPaths(filesToProcess, availablePatches)
 
 		for result := range resultsChan {
 			var color string
