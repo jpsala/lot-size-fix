@@ -63,3 +63,11 @@ La aplicación está escrita en Go y utiliza la biblioteca Fyne para la GUI. Una
 ### Corrección del Menú Contextual
 
 El script `install.ps1` original usaba `"%1"` para pasar la ruta a la aplicación para todas las entradas del menú contextual. Esto funciona para archivos y carpetas, pero no para el menú contextual del fondo de la carpeta. El script corregido ahora usa `"%V"` para el fondo de la carpeta, que pasa correctamente la ruta del directorio actual a la aplicación.
+
+## Fix for `partialScript.mq5`
+
+A specific issue was identified in the `partialScript.mq5` script where the `sqMMFixedAmount` function was using an incorrect calculation for determining the lot size. This led to order placement failures with "Unknown error" (4307).
+
+The original calculation used a naive point-difference approach which did not account for the instrument's contract specifications. The fix involved modifying the `sqMMFixedAmount` function to use `OrderCalcProfit` for accurate drawdown calculation. This ensures that the lot size is calculated correctly according to the broker's specifications.
+
+The patched script `partialScript-148076.mq5` contains this fix and has been verified to resolve the order placement issue.
