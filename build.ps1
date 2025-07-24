@@ -1,15 +1,20 @@
 go clean
 go build -ldflags "-H=windowsgui" -o fix-SQ-scripts.exe main.go
 
-# Create the destination directory if it doesn't exist
-$destinationDir = "G:\My Drive\SQX\sync\lot-size-fix"
-if (-not (Test-Path $destinationDir)) {
-    New-Item -ItemType Directory -Path $destinationDir -Force
+$destinationDirs = @(
+    "G:\My Drive\SQX\sync\lot-size-fix",
+    "G:\My Drive\shared\fix-lot-size"
+)
+
+# List of files to copy
+$filesToCopy = @("fix-SQ-scripts.exe", "install.ps1")
+
+foreach ($dir in $destinationDirs) {
+    if (-not (Test-Path $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force
+    }
+    foreach ($file in $filesToCopy) {
+        Copy-Item -Path $file -Destination $dir -Force
+    }
+    Write-Host "Files copied to: $dir"
 }
-
-# Copy the executable and PowerShell scripts to the destination
-Copy-Item -Path "fix-SQ-scripts.exe" -Destination $destinationDir -Force
-Copy-Item -Path "install.ps1" -Destination $destinationDir -Force
-Copy-Item -Path "uninstall.ps1" -Destination $destinationDir -Force
-
-Write-Host "Build completed and files copied to: $destinationDir"
