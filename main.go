@@ -36,8 +36,8 @@ func main() {
 	debugFlag := flag.Bool("debug", false, "Habilitar logging de depuración")
 	flag.Parse()
 
+	logger.SetLogFile("debug.log")
 	if *debugFlag {
-		logger.SetLogFile("debug.log")
 		logger.Logger.Println("Application started with args:", os.Args)
 	}
 
@@ -55,7 +55,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		availablePatches := []core.Patch{core.SQMMFixedAmount, core.LotSizeLogging}
+		availablePatches := []core.Patch{core.SQMMFixedAmount}
 		resultsChan := core.ProcessPaths(filesToProcess, availablePatches)
 
 		for result := range resultsChan {

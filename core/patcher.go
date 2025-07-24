@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+func addLineInfoToLog(log string) string {
+	return fmt.Sprintf(`%s, " at line ", __LINE__`, log[:len(log)-1])
+}
+
 // PatchResult holds the result of a patching operation for a single file.
 type PatchResult struct {
 	FilePath string
@@ -75,35 +79,43 @@ var SQMMFixedAmount = Patch{
 		originalContent := content
 		var changes []string
 
-		lineaNueva := `// ---JPS - FIX START ---
+		// Find the function signature
+		reFunc := regexp.MustCompile(`(double\s+sqMMFixedAmount\s*\([^)]*\)\s*\{)`)
+		if !reFunc.MatchString(content) {
+			return content, fmt.Errorf("sqMMFixedAmount function not found")
+		}
+
+		// ---JPS - FIX START ---
+		fixAndLog := `
+	Verbose(StringFormat("JP: >> Entering sqMMFixedAmount. Symbol: %s, OrderType: %s, Price: %.5f, SL: %.5f, RiskedMoney: %.2f, Decimals: %d, LotsIfNoMM: %.2f, MaxLots: %.2f, Multiplier: %.2f", symbol, EnumToString(orderType), price, sl, RiskedMoney, decimals, LotsIfNoMM, MaximumLots, multiplier));
+
 	// Calculate profit/loss for a 1-lot trade to determine the exact drawdown
 	double oneLotSLDrawdown;
+	Verbose(StringFormat("JP: Calculating profit with OpenPrice: %.5f, SL: %.5f", openPrice, sl));
 	if(!OrderCalcProfit(isLongOrder(orderType) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, correctedSymbol, 1.0, openPrice, sl, oneLotSLDrawdown)) {
-		Print("JP: OrderCalcProfit failed. Error: ", GetLastError());
+		Verbose("JP: OrderCalcProfit failed. Error: ", GetLastError());
 		return 0;
 	}
 	oneLotSLDrawdown = MathAbs(oneLotSLDrawdown);
-	Print(StringFormat("JP: Money to risk: %.2f, One Lot SL Drawdown: %.2f, Open Price: %.5f, SL: %.5f, Distance: %.5f", RiskedMoney, oneLotSLDrawdown, openPrice, sl, MathAbs(openPrice - sl)));
-	// --- FIX END ---`
+	Verbose(StringFormat("JP: Money to risk: %.2f, One Lot SL Drawdown: %.2f, Open Price: %.5f, SL: %.5f, Distance: %.5f", RiskedMoney, oneLotSLDrawdown, openPrice, sl, MathAbs(openPrice - sl)));
+	// --- FIX END ---
+`
+		// ---
 
-		rePointValue := regexp.MustCompile(`double\s+PointValue\s*=\s*SymbolInfoDouble\s*\(\s*correctedSymbol,\s*SYMBOL_TRADE_TICK_VALUE\s*\)\s*/\s*SymbolInfoDouble\s*\(\s*correctedSymbol,\s*SYMBOL_TRADE_TICK_SIZE\s*\);`)
-		reMagicNumber := regexp.MustCompile(`(input\s+int\s+MagicNumber\s*=\s*)\d+;`)
-		reVerboseWithPointValue := regexp.MustCompile(`Verbose\s*\("Money to risk:.*?, DoubleToString\(PointValue\)\);`)
-		reUseSQTickSize := regexp.MustCompile(`input\s+bool\s+UseSQTickSize\s*=\s*false;`)
 		reOldDrawdown := regexp.MustCompile(`//Maximum drawdown of this order if we buy 1 lot\s*double\s+oneLotSLDrawdown\s*=\s*PointValue\s*\*\s*MathAbs\s*\(\s*openPrice\s*-\s*sl\s*\);`)
+		content = reOldDrawdown.ReplaceAllString(content, fixAndLog)
+		changes = append(changes, "Replaced drawdown calculation with OrderCalcProfit and added logging.")
 
-		if rePointValue.MatchString(content) {
-			content = rePointValue.ReplaceAllString(content, "")
-			content = reOldDrawdown.ReplaceAllString(content, lineaNueva)
-			content = reVerboseWithPointValue.ReplaceAllString(content, `// $0`)
-			changes = append(changes, "PointValue calculation replaced with OrderCalcProfit.")
-		}
+		// Remove original PointValue calculation
+		rePointValue := regexp.MustCompile(`double\s+PointValue\s*=\s*SymbolInfoDouble\s*\(\s*correctedSymbol,\s*SYMBOL_TRADE_TICK_VALUE\s*\)\s*/\s*SymbolInfoDouble\s*\(\s*correctedSymbol,\s*SYMBOL_TRADE_TICK_SIZE\s*\);`)
+		content = rePointValue.ReplaceAllString(content, "")
 
-		if reUseSQTickSize.MatchString(content) {
-			content = reUseSQTickSize.ReplaceAllString(content, "input bool UseSQTickSize = true;")
-			changes = append(changes, "Set UseSQTickSize to true.")
-		}
+		// Comment out the old verbose log
+		reVerboseWithPointValue := regexp.MustCompile(`Verbose\s*\("Money to risk:.*?, DoubleToString\(PointValue\)\);`)
+		content = reVerboseWithPointValue.ReplaceAllString(content, `// $0`)
 
+		// Update MagicNumber
+		reMagicNumber := regexp.MustCompile(`(input\s+int\s+MagicNumber\s*=\s*)\d+;`)
 		var randomNumber int
 		if reMagicNumber.MatchString(content) {
 			randomNumber = rand.Intn(899999) + 100000
@@ -111,6 +123,57 @@ var SQMMFixedAmount = Patch{
 			content = reMagicNumber.ReplaceAllString(content, replacementStr)
 			changes = append(changes, fmt.Sprintf("MagicNumber updated to %d.", randomNumber))
 		}
+
+		// Set UseSQTickSize to true
+		reUseSQTickSize := regexp.MustCompile(`input\s+bool\s+UseSQTickSize\s*=\s*false;`)
+		if reUseSQTickSize.MatchString(content) {
+			content = reUseSQTickSize.ReplaceAllString(content, "input bool UseSQTickSize = true;")
+			changes = append(changes, "Set UseSQTickSize to true.")
+		}
+
+		// Add logging for return
+		// --- JPS - Margin Check START ---
+		marginCheckCode := `
+	// --- JPS - Margin Check START ---
+	double margin_required;
+	if(!OrderCalcMargin(isLongOrder(orderType) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, correctedSymbol, LotSize, openPrice, margin_required)) {
+		Verbose("JP: OrderCalcMargin failed for initial LotSize. Error: ", GetLastError());
+	} else {
+		double free_margin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
+		Verbose(StringFormat("JP: Margin Check - Initial LotSize: %.2f, Required Margin: %.2f, Free Margin: %.2f", LotSize, margin_required, free_margin));
+
+		if(margin_required > free_margin) {
+			Verbose("JP: Not enough free margin. Adjusting LotSize down...");
+			while(margin_required > free_margin && LotSize > Smallest_Lot) {
+				LotSize -= LotStep;
+				if(LotSize < Smallest_Lot) {
+					LotSize = 0;
+					break;
+				}
+				if(!OrderCalcMargin(isLongOrder(orderType) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, correctedSymbol, LotSize, openPrice, margin_required)){
+					Verbose("JP: OrderCalcMargin failed during adjustment. Error: ", GetLastError());
+					LotSize = 0; // Fail safe
+					break;
+				}
+				Verbose(StringFormat("JP: Margin Check (Adjusting) - New LotSize: %.2f, Required Margin: %.2f", LotSize, margin_required));
+			}
+
+			if(LotSize > 0) {
+				Verbose(StringFormat("JP: Final Adjusted LotSize to fit margin: %.2f", LotSize));
+			} else {
+				Verbose("JP: Could not adjust LotSize to fit margin. LotSize set to 0.");
+			}
+		}
+	}
+	// --- JPS - Margin Check END ---
+`
+		// ---
+
+		reReturn := regexp.MustCompile(`(return\s*\(\s*LotSize\s*\);)`)
+		logReturn := marginCheckCode + `
+	Verbose(StringFormat("JP: << Exiting sqMMFixedAmount. Final LotSize: %.2f", LotSize));
+	$1`
+		content = reReturn.ReplaceAllString(content, logReturn)
 
 		if originalContent != content {
 			return content, nil
@@ -125,7 +188,7 @@ var SQMMFixedAmount = Patch{
 func ProcessPaths(filesToProcess []string, patches []Patch) <-chan PatchResult {
 	// Ensure all available patches are included if the slice is empty.
 	if len(patches) == 0 {
-		patches = append(patches, SQMMFixedAmount, LotSizeLogging)
+		patches = append(patches, SQMMFixedAmount)
 	}
 
 	results := make(chan PatchResult)
