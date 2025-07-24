@@ -55,7 +55,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		availablePatches := []core.Patch{core.SQMMFixedAmount}
+		availablePatches := []core.Patch{core.SQMMFixedAmount, core.LotSizeLogging}
 		resultsChan := core.ProcessPaths(filesToProcess, availablePatches)
 
 		for result := range resultsChan {

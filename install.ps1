@@ -115,3 +115,5 @@ Set-Content -Path $uninstallScriptPath -Value $uninstallScriptContent
 
 Write-Host "Installation complete. Context menu items have been added."
 Write-Host "An uninstall.ps1 script has been created in the same directory."
+
+Read-Host "Press Enter to exit"

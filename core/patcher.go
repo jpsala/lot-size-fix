@@ -79,11 +79,11 @@ var SQMMFixedAmount = Patch{
 	// Calculate profit/loss for a 1-lot trade to determine the exact drawdown
 	double oneLotSLDrawdown;
 	if(!OrderCalcProfit(isLongOrder(orderType) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, correctedSymbol, 1.0, openPrice, sl, oneLotSLDrawdown)) {
-		Print("OrderCalcProfit failed. Error: ", GetLastError());
+		Print("JP: OrderCalcProfit failed. Error: ", GetLastError());
 		return 0;
 	}
 	oneLotSLDrawdown = MathAbs(oneLotSLDrawdown);
-	Print(StringFormat("Money to risk: %.2f, One Lot SL Drawdown: %.2f", RiskedMoney, oneLotSLDrawdown));
+	Print(StringFormat("JP: Money to risk: %.2f, One Lot SL Drawdown: %.2f", RiskedMoney, oneLotSLDrawdown));
 	// --- FIX END ---`
 
 		rePointValue := regexp.MustCompile(`double\s+PointValue\s*=\s*SymbolInfoDouble\s*\(\s*correctedSymbol,\s*SYMBOL_TRADE_TICK_VALUE\s*\)\s*/\s*SymbolInfoDouble\s*\(\s*correctedSymbol,\s*SYMBOL_TRADE_TICK_SIZE\s*\);`)
@@ -123,6 +123,11 @@ var SQMMFixedAmount = Patch{
 // ProcessPaths finds, reads, and patches .mq5 files based on the provided paths.
 // It returns a channel of PatchResult to communicate the outcome of each operation.
 func ProcessPaths(filesToProcess []string, patches []Patch) <-chan PatchResult {
+	// Ensure all available patches are included if the slice is empty.
+	if len(patches) == 0 {
+		patches = append(patches, SQMMFixedAmount, LotSizeLogging)
+	}
+
 	results := make(chan PatchResult)
 
 	go func() {
@@ -139,26 +144,6 @@ func ProcessPaths(filesToProcess []string, patches []Patch) <-chan PatchResult {
 		}
 
 		for _, archivo := range filesToProcess {
-			ext := filepath.Ext(archivo)
-			base := strings.TrimSuffix(archivo, ext)
-			globPattern := fmt.Sprintf("%s-*%s", base, ext)
-			matches, err := filepath.Glob(globPattern)
-			if err != nil {
-				results <- PatchResult{
-					FilePath: archivo,
-					Status:   "Error",
-					Message:  fmt.Sprintf("Error checking for patched files: %v", err),
-				}
-				continue
-			}
-			if len(matches) > 0 {
-				results <- PatchResult{
-					FilePath: archivo,
-					Status:   "Omitido",
-					Message:  "An already patched version of this file exists, skipping.",
-				}
-				continue
-			}
 
 			contenido, err := ioutil.ReadFile(archivo)
 			if err != nil {
@@ -215,7 +200,8 @@ func ProcessPaths(filesToProcess []string, patches []Patch) <-chan PatchResult {
 
 						ext := filepath.Ext(archivo)
 						base := archivo[:len(archivo)-len(ext)]
-						newFilePath = fmt.Sprintf("%s-%s%s", base, strings.Split(matches[0], " ")[4], ext)
+						magicNumberStr := strings.TrimSuffix(strings.Split(matches[0], " ")[4], ";")
+						newFilePath = fmt.Sprintf("%s-%s%s", base, magicNumberStr, ext)
 					} else {
 						newFilePath = archivo
 					}
