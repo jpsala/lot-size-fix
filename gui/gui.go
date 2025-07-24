@@ -2,7 +2,6 @@ package gui
 
 import (
 	"fix-SQ-scripts/core"
-	"fix-SQ-scripts/logger"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -13,10 +12,6 @@ import (
 
 // Start is the entry point for the GUI mode.
 func Start(paths []string, debug bool) {
-	if debug {
-		logger.SetLogFile("debug.log")
-	}
-
 	a := app.New()
 	w := a.NewWindow("File Patcher")
 

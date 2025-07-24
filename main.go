@@ -7,7 +7,6 @@ import (
 
 	"fix-SQ-scripts/core"
 	"fix-SQ-scripts/gui"
-	"fix-SQ-scripts/logger"
 )
 
 const (
@@ -35,11 +34,6 @@ func main() {
 	guiFlag := flag.Bool("gui", false, "Lanzar en modo GUI")
 	debugFlag := flag.Bool("debug", false, "Habilitar logging de depuración")
 	flag.Parse()
-
-	logger.SetLogFile("debug.log")
-	if *debugFlag {
-		logger.Logger.Println("Application started with args:", os.Args)
-	}
 
 	if *guiFlag {
 		gui.Start(flag.Args(), *debugFlag)
