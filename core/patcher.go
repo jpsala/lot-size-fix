@@ -75,7 +75,7 @@ var SQMMFixedAmount = Patch{
 		originalContent := content
 		var changes []string
 
-		lineaNueva := `// --- FIX START ---
+		lineaNueva := `// ---JPS - FIX START ---
 	// Calculate profit/loss for a 1-lot trade to determine the exact drawdown
 	double oneLotSLDrawdown;
 	if(!OrderCalcProfit(isLongOrder(orderType) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, correctedSymbol, 1.0, openPrice, sl, oneLotSLDrawdown)) {
@@ -83,7 +83,7 @@ var SQMMFixedAmount = Patch{
 		return 0;
 	}
 	oneLotSLDrawdown = MathAbs(oneLotSLDrawdown);
-	Print(StringFormat("JP: Money to risk: %.2f, One Lot SL Drawdown: %.2f", RiskedMoney, oneLotSLDrawdown));
+	Print(StringFormat("JP: Money to risk: %.2f, One Lot SL Drawdown: %.2f, Open Price: %.5f, SL: %.5f, Distance: %.5f", RiskedMoney, oneLotSLDrawdown, openPrice, sl, MathAbs(openPrice - sl)));
 	// --- FIX END ---`
 
 		rePointValue := regexp.MustCompile(`double\s+PointValue\s*=\s*SymbolInfoDouble\s*\(\s*correctedSymbol,\s*SYMBOL_TRADE_TICK_VALUE\s*\)\s*/\s*SymbolInfoDouble\s*\(\s*correctedSymbol,\s*SYMBOL_TRADE_TICK_SIZE\s*\);`)
