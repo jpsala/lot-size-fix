@@ -11,7 +11,7 @@ import (
 )
 
 // Start is the entry point for the GUI mode.
-func Start(paths []string, debug bool) {
+func Start(paths []string, debug bool, autoClose bool) {
 	a := app.New()
 	w := a.NewWindow("File Patcher")
 
@@ -30,7 +30,11 @@ func Start(paths []string, debug bool) {
 	go func() {
 		defer func() {
 			progressLabel.SetText("All tasks complete.")
-			closeButton.Enable()
+			if autoClose {
+				w.Close()
+			} else {
+				closeButton.Enable()
+			}
 		}()
 
 		filesToProcess, err := core.GetFilesToProcess(paths)
@@ -42,7 +46,11 @@ func Start(paths []string, debug bool) {
 		totalFiles := len(filesToProcess)
 		if totalFiles == 0 {
 			progressLabel.SetText("No files found to process.")
-			closeButton.Enable()
+			if autoClose {
+				w.Close()
+			} else {
+				closeButton.Enable()
+			}
 			return
 		}
 		availablePatches := []core.Patch{core.SQMMFixedAmount}

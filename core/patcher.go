@@ -80,6 +80,10 @@ var SQMMFixedAmount = Patch{
 		var changes []string
 
 		// Find the function signature
+		if strings.Contains(content, "// Patched on") {
+			return content, fmt.Errorf("already patched")
+		}
+
 		reFunc := regexp.MustCompile(`(double\s+sqMMFixedAmount\s*\([^)]*\)\s*\{)`)
 		if !reFunc.MatchString(content) {
 			return content, fmt.Errorf("sqMMFixedAmount function not found")
@@ -225,15 +229,6 @@ func ProcessPaths(filesToProcess []string, patches []Patch) <-chan PatchResult {
 					FilePath: archivo,
 					Status:   "Omitido",
 					Message:  "File already patched, skipping.",
-				}
-				continue
-			}
-
-			if strings.Contains(contenidoString, `Print("Lot size for ", _Symbol, " is ", DoubleToString(lotSize, 2));`) {
-				results <- PatchResult{
-					FilePath: archivo,
-					Status:   "Omitido",
-					Message:  "El archivo ya ha sido parcheado anteriormente.",
 				}
 				continue
 			}

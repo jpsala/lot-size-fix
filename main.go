@@ -7,6 +7,7 @@ import (
 
 	"fix-SQ-scripts/core"
 	"fix-SQ-scripts/gui"
+	"fix-SQ-scripts/settings"
 )
 
 const (
@@ -35,8 +36,13 @@ func main() {
 	debugFlag := flag.Bool("debug", false, "Habilitar logging de depuración")
 	flag.Parse()
 
+	cfg, err := settings.LoadSettings()
+	if err != nil {
+		fmt.Printf("%sError cargando la configuración: %v%s\n", ColorRed, err, ColorReset)
+		os.Exit(1)
+	}
 	if *guiFlag {
-		gui.Start(flag.Args(), *debugFlag)
+		gui.Start(flag.Args(), *debugFlag, cfg.AutoClose)
 	} else {
 		if len(flag.Args()) < 1 {
 			mostrarAyuda()
@@ -65,6 +71,11 @@ func main() {
 				color = ColorReset
 			}
 			fmt.Printf("%s[%s]%s %s: %s\n", color, result.Status, ColorReset, result.FilePath, result.Message)
+		}
+
+		if !cfg.AutoClose {
+			fmt.Printf("\n%sPresiona Enter para salir...%s", ColorYellow, ColorReset)
+			fmt.Scanln()
 		}
 	}
 }
